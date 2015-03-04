@@ -74,6 +74,11 @@ func (d *testOvsStateDriver) ClearState(key string) error {
 	return nil
 }
 
+func (d *testOvsStateDriver) SafeClearState(key string, prevVal core.State,
+	marshal func(interface{}) ([]byte, error)) error {
+	return nil
+}
+
 func (d *testOvsStateDriver) readStateHelper(isCreateEp bool, oper int,
 	value core.State) error {
 	if cfgNw, ok := value.(*OvsCfgNetworkState); ok {
@@ -100,8 +105,10 @@ func (d *testOvsStateDriver) readStateHelper(isCreateEp bool, oper int,
 			} else if oper == READ_EP_WITH_INTF {
 				cfgEp.Id = createEpWithIntfId
 				cfgEp.IntfName = testIntfName
+				cfgEp.NetId = testOvsNwId
 			} else {
 				cfgEp.Id = createEpId
+				cfgEp.NetId = testOvsNwId
 				cfgEp.IntfName = ""
 			}
 		} else {
@@ -111,6 +118,8 @@ func (d *testOvsStateDriver) readStateHelper(isCreateEp bool, oper int,
 				cfgEp.NetId = testOvsNwId
 			} else if oper == READ_EP_WITH_INTF {
 				cfgEp.Id = deleteEpWithIntfId
+				cfgEp.NetId = testOvsNwId
+				cfgEp.IntfName = testIntfName
 			} else {
 				cfgEp.Id = deleteEpId
 			}
@@ -179,6 +188,13 @@ func (d *testOvsStateDriver) ReadState(key string, value core.State,
 
 func (d *testOvsStateDriver) WriteState(key string, value core.State,
 	marshal func(interface{}) ([]byte, error)) error {
+	return nil
+}
+
+func (d *testOvsStateDriver) SafeWriteState(key string, value core.State,
+	marshal func(interface{}) ([]byte, error),
+	prevVal func(core.State) core.State,
+	nextVal func(core.State) core.State) error {
 	return nil
 }
 
@@ -327,7 +343,7 @@ func TestOvsDriverDeleteEndpoint(t *testing.T) {
 	}
 }
 
-func TestOvsDriverDeleteEndpointiWithIntfName(t *testing.T) {
+func TestOvsDriverDeleteEndpointWithIntfName(t *testing.T) {
 	driver := initOvsDriver(t)
 	defer func() { driver.Deinit() }()
 	id := deleteEpWithIntfId

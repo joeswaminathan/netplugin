@@ -65,6 +65,11 @@ func (d *testNwStateDriver) ClearState(key string) error {
 	return d.validateKey(key)
 }
 
+func (d *testNwStateDriver) SafeClearState(key string, prevVal core.State,
+	marshal func(interface{}) ([]byte, error)) error {
+	return d.validateKey(key)
+}
+
 func (d *testNwStateDriver) ReadState(key string, value core.State,
 	unmarshal func([]byte, interface{}) error) error {
 	return d.validateKey(key)
@@ -72,6 +77,13 @@ func (d *testNwStateDriver) ReadState(key string, value core.State,
 
 func (d *testNwStateDriver) WriteState(key string, value core.State,
 	marshal func(interface{}) ([]byte, error)) error {
+	return d.validateKey(key)
+}
+
+func (d *testNwStateDriver) SafeWriteState(key string, value core.State,
+	marshal func(interface{}) ([]byte, error),
+	prevVal func(core.State) core.State,
+	nextVal func(core.State) core.State) error {
 	return d.validateKey(key)
 }
 
@@ -120,10 +132,28 @@ func TestOvsOperNetworkStateWrite(t *testing.T) {
 	}
 }
 
+func TestOvsOperNetworkStateSafeWrite(t *testing.T) {
+	epOper := &OvsOperNetworkState{StateDriver: nwStateDriver, Id: testNwId}
+
+	err := epOper.SafeWrite(nil, nil)
+	if err != nil {
+		t.Fatalf("write oper state failed. Error: %s", err)
+	}
+}
+
 func TestOvsOperNetworkStateClear(t *testing.T) {
 	epOper := &OvsOperNetworkState{StateDriver: nwStateDriver, Id: testNwId}
 
 	err := epOper.Clear()
+	if err != nil {
+		t.Fatalf("clear oper state failed. Error: %s", err)
+	}
+}
+
+func TestOvsOperNetworkStateSafeClear(t *testing.T) {
+	epOper := &OvsOperNetworkState{StateDriver: nwStateDriver, Id: testNwId}
+
+	err := epOper.SafeClear()
 	if err != nil {
 		t.Fatalf("clear oper state failed. Error: %s", err)
 	}

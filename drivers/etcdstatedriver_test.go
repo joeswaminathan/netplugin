@@ -18,6 +18,7 @@ package drivers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/contiv/netplugin/core"
@@ -179,7 +180,7 @@ func TestEtcdStateDriverReadState(t *testing.T) {
 	driver := setupDriver(t)
 	state := &testState{IgnoredField: driver, IntField: 1234,
 		StrField: "testString"}
-	key := "/contiv/dir1/testKeyRead"
+	key := "/dir1/dir2/testKeyRead"
 
 	err := driver.WriteState(key, state, json.Marshal)
 	if err != nil {
@@ -246,5 +247,104 @@ func TestEtcdStateDriverReadStateAfterClear(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Able to read cleared state!. Key: %s, Value: %v",
 			key, readState)
+	}
+}
+
+func TestEtcdStateDriverReadStateAfterSafeWrite(t *testing.T) {
+	driver := setupDriver(t)
+	startingVal := 1
+	state := &testState{IntField: startingVal, StrField: "testString"}
+	key := "testKeyReadSafeWrite"
+
+	err := driver.WriteState(key, state, json.Marshal)
+	if err != nil {
+		t.Fatalf("failed to write state. Error: %s", err)
+	}
+
+	updater := func(driver core.StateDriver, value int, waitCh chan string) {
+		state := &testState{IntField: value, StrField: "testString"}
+		key := "testKeyReadSafeWrite"
+		err := driver.SafeWriteState(key, state, json.Marshal,
+			func(currVal core.State) core.State {
+				prevVal := *currVal.(*testState)
+				prevVal.IntField = value - 1
+				return &prevVal
+			},
+			func(currVal core.State) core.State {
+				return currVal
+			})
+		if err != nil {
+			t.Fatalf("failed to write state. Error: %s", err)
+		}
+		waitCh <- fmt.Sprintf("updater %d is done", value-1)
+	}
+
+	numUpdaters := 5
+	waitCh := make(chan string, numUpdaters)
+	for i := numUpdaters; i > 0; i-- {
+		go updater(driver, startingVal+i, waitCh)
+	}
+
+	//wait for all routines to be done
+	for i := 0; i < numUpdaters; {
+		select {
+		case str := <-waitCh:
+			t.Logf("%s", str)
+			i++
+		}
+	}
+	readState := &testState{}
+	err = driver.ReadState(key, readState, json.Unmarshal)
+	if err != nil {
+		t.Fatalf("failed to read state. Error: %s", err)
+	}
+	if readState.IntField != numUpdaters+startingVal {
+		t.Fatalf("Read state value doesn't mach expected value. Read: %d, Expected: %d",
+			readState.IntField, numUpdaters+startingVal)
+	}
+}
+
+func TestEtcdStateDriverReadStateAfterSafeClearSuccess(t *testing.T) {
+	driver := setupDriver(t)
+	state := &testState{IntField: 1, StrField: "testString"}
+	key := "testKeyReadSafeClearSuccess"
+
+	err := driver.WriteState(key, state, json.Marshal)
+	if err != nil {
+		t.Fatalf("failed to write state. Error: %s", err)
+	}
+
+	err = driver.SafeClearState(key, state, json.Marshal)
+	if err != nil {
+		t.Fatalf("failed to clear state. Error: %s", err)
+	}
+	readState := &testState{}
+	err = driver.ReadState(key, readState, json.Unmarshal)
+	if err == nil {
+		t.Fatalf("Able to read cleared state!. Key: %s, Value: %v",
+			key, readState)
+	}
+}
+
+func TestEtcdStateDriverReadStateAfterSafeClearFailure(t *testing.T) {
+	driver := setupDriver(t)
+	state := &testState{IntField: 1, StrField: "testString"}
+	key := "testKeyReadSafeClearFailure"
+
+	err := driver.WriteState(key, state, json.Marshal)
+	if err != nil {
+		t.Fatalf("failed to write state. Error: %s", err)
+	}
+
+	state.IntField = 2
+	err = driver.SafeClearState(key, state, json.Marshal)
+	if err == nil {
+		t.Fatalf("Clear succeeded, expected to fail.")
+	}
+
+	readState := &testState{}
+	err = driver.ReadState(key, readState, json.Unmarshal)
+	if err != nil {
+		t.Fatalf("failed to read state. Error: %s", err)
 	}
 }

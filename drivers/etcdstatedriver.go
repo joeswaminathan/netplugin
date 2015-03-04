@@ -18,6 +18,7 @@ package drivers
 import (
 	"fmt"
 	"github.com/contiv/go-etcd/etcd"
+	"log"
 
 	"github.com/contiv/netplugin/core"
 )
@@ -117,4 +118,66 @@ func (d *EtcdStateDriver) WriteState(key string, value core.State,
 	}
 
 	return nil
+}
+
+func (d *EtcdStateDriver) SafeWriteState(key string, value core.State,
+	marshal func(interface{}) ([]byte, error),
+	prevVal func(core.State) core.State,
+	nextVal func(core.State) core.State) error {
+
+	for {
+		encodedState, err := marshal(value)
+		if err != nil {
+			return err
+		}
+		// first try to create the entry
+		_, err = d.Client.Create(key, string(encodedState), 0)
+		if err == nil {
+			// success creating the key!
+			log.Printf("successfully created key %s, val: %q", key,
+				string(encodedState))
+			return nil
+		} else if err != nil && err.(*etcd.EtcdError).Message != "Key already exists" {
+			return err
+		}
+
+		// if create fails due to 'key exists' error, then try a compare and swap
+		encodedPrevState, err := marshal(prevVal(value))
+		if err != nil {
+			return err
+		}
+
+		_, err = d.Client.CompareAndSwap(key, string(encodedState), 0,
+			string(encodedPrevState), 0)
+		if err == nil {
+			// success updating the key!
+			log.Printf("successfully updated key %s, val: %q", key,
+				string(encodedState))
+			return nil
+		} else if err != nil && err.(*etcd.EtcdError).Message != "Compare failed" {
+			return err
+		}
+
+		// if update fails due to 'compare failed' error then get next value
+		// and try a compare and swap again
+		// Note: Being optimistic we will try for ever, unless nextState is nil
+		// i.e. caller's logic implies to give-up and return.
+		value = nextVal(value)
+		if value == nil {
+			return &core.Error{Desc: "next value was nil"}
+		}
+		log.Printf("looping on key %s, prevVal: %q, nextVal: %q",
+			key, string(encodedState), string(encodedPrevState))
+	}
+}
+
+func (d *EtcdStateDriver) SafeClearState(key string, prevVal core.State,
+	marshal func(interface{}) ([]byte, error)) error {
+	encodedState, err := marshal(prevVal)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.Client.CompareAndDelete(key, string(encodedState), 0)
+	return err
 }

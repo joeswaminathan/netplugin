@@ -208,7 +208,12 @@ func (d *OvsDriver) getPortOrIntfNameFromId(id string, isPort bool) (string, err
 			}
 		}
 	}
-	return "", &core.Error{Desc: fmt.Sprintf("Ovs port/intf not found for id: %s", id)}
+	str := "port"
+	if !isPort {
+		str = "intf"
+	}
+	return "", &core.Error{Desc: fmt.Sprintf("Ovs %s not found for id: %s",
+		str, id)}
 }
 
 func (d *OvsDriver) createDeletePort(portName, intfName, intfType, id string,
@@ -432,11 +437,12 @@ func (d *OvsDriver) CreateNetwork(id string) error {
 	var subnetIp string
 	var gOper gstate.Oper
 
-	operNwState := OvsOperNetworkState{StateDriver: d.stateDriver}
-	err = operNwState.Read(id)
-	if err == nil {
-		return err
-	}
+	//XXX: Looks like a misplace read, cleanup!
+	//operNwState := OvsOperNetworkState{StateDriver: d.stateDriver}
+	//err = operNwState.Read(id)
+	//if err == nil {
+	//	return err
+	//}
 
 	cfgNetState := OvsCfgNetworkState{StateDriver: d.stateDriver}
 	err = cfgNetState.Read(id)
@@ -449,7 +455,7 @@ func (d *OvsDriver) CreateNetwork(id string) error {
 		return err
 	}
 
-	operNwState = OvsOperNetworkState{StateDriver: d.stateDriver,
+	operNwState := OvsOperNetworkState{StateDriver: d.stateDriver,
 		Id: cfgNetState.Id, Tenant: cfgNetState.Tenant,
 		PktTagType: cfgNetState.PktTagType,
 		DefaultGw:  cfgNetState.DefaultGw}
@@ -519,7 +525,28 @@ func (d *OvsDriver) CreateNetwork(id string) error {
 	operNwState.SubnetLen = subnetLen
 
 	netutils.InitSubnetBitset(&operNwState.IpAllocMap, subnetLen)
-	err = operNwState.Write()
+	operNwState.RefCount = 1
+	// try a safe write, since network oper state can be updated by
+	// multiple instances of the driver.
+	// XXX: just taking ref-count into consideration for now.
+	// Rest of the state updated above is resource allocation related and will
+	// be moved to driver's cfg state
+	err = operNwState.SafeWrite(
+		func(currVal core.State) core.State {
+			prevVal := *currVal.(*OvsOperNetworkState)
+			prevVal.RefCount -= 1
+			return &prevVal
+		},
+		func(currVal core.State) core.State {
+			nextVal := OvsOperNetworkState{StateDriver: d.stateDriver}
+			err := nextVal.Read(currVal.(*OvsOperNetworkState).Id)
+			if err != nil {
+				log.Printf("Failed to read network oper state, err '%s' \n", err)
+				return nil
+			}
+			nextVal.RefCount += 1
+			return core.State(&nextVal)
+		})
 	if err != nil {
 		return err
 	}
@@ -541,7 +568,7 @@ func (d *OvsDriver) DeleteNetwork(value string) error {
 	operNwState := OvsOperNetworkState{StateDriver: d.stateDriver}
 	err = operNwState.Read(cfgNetState.Id)
 	if err != nil {
-		return core.ErrIfKeyExists(err)
+		return err
 	}
 
 	err = gOper.Read(d.stateDriver, operNwState.Tenant)
@@ -577,9 +604,45 @@ func (d *OvsDriver) DeleteNetwork(value string) error {
 		return err
 	}
 
-	err = operNwState.Clear()
+	operNwState.RefCount -= 1
+	// try a safe write, since network oper state can be updated by
+	// multiple instances of the driver.
+	// XXX: just taking ref-count into consideration for now.
+	// Rest of the state updated above is related to resource allocation
+	// and will be moved to driver's cfg state
+	err = operNwState.SafeWrite(
+		func(currVal core.State) core.State {
+			prevVal := *currVal.(*OvsOperNetworkState)
+			prevVal.RefCount += 1
+			return &prevVal
+		},
+		func(currVal core.State) core.State {
+			nextVal := OvsOperNetworkState{StateDriver: d.stateDriver}
+			err := nextVal.Read(currVal.(*OvsOperNetworkState).Id)
+			if err != nil {
+				log.Printf("Failed to read network oper state, err '%s' \n", err)
+				return nil
+			}
+			nextVal.RefCount -= 1
+			return &nextVal
+		})
+	if err != nil {
+		return err
+	}
+
+	// read the updated state and try a safe clear if ref-count returned is 0,
+	// after our write
+	operNwState = OvsOperNetworkState{StateDriver: d.stateDriver}
+	err = operNwState.Read(cfgNetState.Id)
 	if err != nil {
 		return core.ErrIfKeyExists(err)
+	}
+
+	if operNwState.RefCount == 0 {
+		err = operNwState.SafeClear()
+		if err != nil {
+			return core.ErrIfKeyExists(err)
+		}
 	}
 
 	return nil
@@ -621,14 +684,13 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 		intfType = ""
 	}
 
-	cfgNetState := OvsCfgNetworkState{StateDriver: d.stateDriver}
-	err = cfgNetState.Read(epCfg.NetId)
-	if err != nil {
-		return err
-	}
+	// XXX: not being used below, cleanup!
+	//cfgNetState := OvsCfgNetworkState{StateDriver: d.stateDriver}
+	//err = cfgNetState.Read(epCfg.NetId)
+	//if err != nil {
+	//	return err
+	//}
 
-	// TODO: use etcd distributed lock to ensure atomicity of this operation
-	// this is valid for EpCount, defer the unlocking for intermediate returns
 	operNwState := OvsOperNetworkState{StateDriver: d.stateDriver}
 	err = operNwState.Read(epCfg.NetId)
 	if err != nil {
@@ -672,19 +734,31 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 	}
 	operNwState.IpAllocMap.Set(ipAddrBit)
 
-	// deprecate - bitset.WordCount gives the following value
 	operNwState.EpCount += 1
-	err = operNwState.Write()
+	// try a safe write, since network oper state can be updated by
+	// multiple instances of the driver.
+	// XXX: just taking ep-count into consideration for now.
+	// Rest of the state updated above is resource allocation related and will
+	// be moved to driver's cfg state
+	err = operNwState.SafeWrite(
+		func(currVal core.State) core.State {
+			prevVal := *currVal.(*OvsOperNetworkState)
+			prevVal.EpCount -= 1
+			return &prevVal
+		},
+		func(currVal core.State) core.State {
+			nextVal := OvsOperNetworkState{StateDriver: d.stateDriver}
+			err := nextVal.Read(currVal.(*OvsOperNetworkState).Id)
+			if err != nil {
+				log.Printf("Failed to read network oper state, err '%s' \n", err)
+				return nil
+			}
+			nextVal.EpCount += 1
+			return core.State(&nextVal)
+		})
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			//XXX: need to return allocated ip back to the pool in case of failure
-			operNwState.EpCount -= 1
-			operNwState.Write()
-		}
-	}()
 
 	operEpState := OvsOperEndpointState{
 		StateDriver: d.stateDriver,
@@ -768,7 +842,27 @@ func (d *OvsDriver) DeleteEndpoint(value string) (err error) {
 	}
 
 	operNwState.EpCount -= 1
-	err = operNwState.Write()
+	// try a safe write, since network oper state can be updated by
+	// multiple instances of the driver.
+	// XXX: just taking ep-count into consideration for now.
+	// Rest of the state updated above is resource allocation related and will
+	// be moved to driver's cfg state
+	err = operNwState.SafeWrite(
+		func(currVal core.State) core.State {
+			prevVal := *currVal.(*OvsOperNetworkState)
+			prevVal.EpCount += 1
+			return &prevVal
+		},
+		func(currVal core.State) core.State {
+			nextVal := OvsOperNetworkState{StateDriver: d.stateDriver}
+			err := nextVal.Read(currVal.(*OvsOperNetworkState).Id)
+			if err != nil {
+				log.Printf("Failed to read network oper state, err '%s' \n", err)
+				return nil
+			}
+			nextVal.EpCount -= 1
+			return core.State(&nextVal)
+		})
 	if err != nil {
 		return err
 	}

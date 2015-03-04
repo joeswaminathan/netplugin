@@ -86,11 +86,19 @@ type OvsOperNetworkState struct {
 	DefaultGw   string           `json:"defaultGw"`
 	EpCount     int              `json:"epCount"`
 	IpAllocMap  bitset.BitSet    `json:"ipAllocMap"`
+	RefCount    int              `json:"refCount"`
 }
 
 func (s *OvsOperNetworkState) Write() error {
 	key := fmt.Sprintf(NW_OPER_PATH, s.Id)
 	return s.StateDriver.WriteState(key, s, json.Marshal)
+}
+
+func (s *OvsOperNetworkState) SafeWrite(
+	prevVal func(core.State) core.State,
+	nextVal func(core.State) core.State) error {
+	key := fmt.Sprintf(NW_OPER_PATH, s.Id)
+	return s.StateDriver.SafeWriteState(key, s, json.Marshal, prevVal, nextVal)
 }
 
 func (s *OvsOperNetworkState) Read(id string) error {
@@ -101,6 +109,11 @@ func (s *OvsOperNetworkState) Read(id string) error {
 func (s *OvsOperNetworkState) Clear() error {
 	key := fmt.Sprintf(NW_OPER_PATH, s.Id)
 	return s.StateDriver.ClearState(key)
+}
+
+func (s *OvsOperNetworkState) SafeClear() error {
+	key := fmt.Sprintf(NW_OPER_PATH, s.Id)
+	return s.StateDriver.SafeClearState(key, s, json.Marshal)
 }
 
 func (s *OvsOperNetworkState) Unmarshal(value string) error {

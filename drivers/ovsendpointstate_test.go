@@ -65,6 +65,11 @@ func (d *testEpStateDriver) ClearState(key string) error {
 	return d.validateKey(key)
 }
 
+func (d *testEpStateDriver) SafeClearState(key string, prevVal core.State,
+	marshal func(interface{}) ([]byte, error)) error {
+	return &core.Error{Desc: "Shouldn't be called!"}
+}
+
 func (d *testEpStateDriver) ReadState(key string, value core.State,
 	unmarshal func([]byte, interface{}) error) error {
 	return d.validateKey(key)
@@ -73,6 +78,13 @@ func (d *testEpStateDriver) ReadState(key string, value core.State,
 func (d *testEpStateDriver) WriteState(key string, value core.State,
 	marshal func(interface{}) ([]byte, error)) error {
 	return d.validateKey(key)
+}
+
+func (d *testEpStateDriver) SafeWriteState(key string, value core.State,
+	marshal func(interface{}) ([]byte, error),
+	prevVal func(core.State) core.State,
+	nextVal func(core.State) core.State) error {
+	return &core.Error{Desc: "Shouldn't be called!"}
 }
 
 func TestOvsCfgEndpointStateRead(t *testing.T) {

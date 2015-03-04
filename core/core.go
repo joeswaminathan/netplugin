@@ -101,7 +101,13 @@ type StateDriver interface {
 	ReadRecursive(baseKey string) ([]string, error)
 	WriteState(key string, value State,
 		marshal func(interface{}) ([]byte, error)) error
+	SafeWriteState(key string, value State,
+		marshal func(interface{}) ([]byte, error),
+		prevVal func(State) State,
+		nextVal func(State) State) error
 	ReadState(key string, value State,
 		unmarshal func([]byte, interface{}) error) error
 	ClearState(key string) error
+	SafeClearState(key string, prevVal State,
+		marshal func(interface{}) ([]byte, error)) error
 }
