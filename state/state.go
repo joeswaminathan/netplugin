@@ -23,10 +23,6 @@ import (
 	//	"state/kvs"
 )
 
-type CommonState struct {
-	Id string `json:"id"`
-}
-
 type State interface {
 	Read() error
 	Write() error
