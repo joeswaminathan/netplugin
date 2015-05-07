@@ -18,29 +18,16 @@ package drivers
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/contiv/netplugin/core"
 	"github.com/jainvipin/bitset"
+	"state"
 )
 
 // implements the State interface for a network implemented using
-// vlans with ovs. The state is stored as Json objects.
-const (
-	BASE_PATH           = "/contiv/"
-	CFG_PATH            = BASE_PATH + "config/"
-	NW_CFG_PATH_PREFIX  = CFG_PATH + "nets/"
-	NW_CFG_PATH         = NW_CFG_PATH_PREFIX + "%s"
-	EP_CFG_PATH_PREFIX  = CFG_PATH + "eps/"
-	EP_CFG_PATH         = EP_CFG_PATH_PREFIX + "%s"
-	OPER_PATH           = BASE_PATH + "oper/"
-	NW_OPER_PATH_PREFIX = OPER_PATH + "nets/"
-	NW_OPER_PATH        = NW_OPER_PATH_PREFIX + "%s"
-	EP_OPER_PATH_PREFIX = OPER_PATH + "eps/"
-	EP_OPER_PATH        = EP_OPER_PATH_PREFIX + "%s"
-)
+// vlans with ovs. The st is stored as Json objects.
 
 type OvsCfgNetworkState struct {
-	core.CommonState
+	Id         string        `json:"id"`
 	Tenant     string        `json:"tenant"`
 	PktTagType string        `json:"pktTagType"`
 	PktTag     int           `json:"pktTag"`
@@ -52,21 +39,31 @@ type OvsCfgNetworkState struct {
 	IpAllocMap bitset.BitSet `json:"ipAllocMap"`
 }
 
-func (s *OvsCfgNetworkState) Write() error {
-	key := fmt.Sprintf(NW_CFG_PATH, s.Id)
-	return s.StateDriver.WriteState(key, s, json.Marshal)
+func (s OvsCfgNetworkState) Key() string {
+	return NW_CFG_PATH_PREFIX + s.Id
 }
 
-func (s *OvsCfgNetworkState) Read(id string) error {
-	key := fmt.Sprintf(NW_CFG_PATH, id)
-	return s.StateDriver.ReadState(key, s, json.Unmarshal)
+func readNwCfg(id string) (st state.State, nwCfg *OvsCfgNetworkState, err error) {
+	st := state.NewState{Data: OvsCfgNetworkState{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	nwCfg := &((st.Data()).(OvsCfgNetworkState))
+	return
 }
 
-func (s *OvsCfgNetworkState) ReadAll() ([]core.State, error) {
-	return s.StateDriver.ReadAllState(NW_CFG_PATH_PREFIX, s, json.Unmarshal)
+func newNwCfgFromId(id string) (st state.State, nwCfg *OvsCfgNetworkState, err error) {
+	st := state.NewState{Data: OvsCfgNetworkState{Id: id}}
+	nwCfg := &((st.Data()).(OvsCfgNetworkState))
+	return
 }
 
-func (s *OvsCfgNetworkState) Clear() error {
-	key := fmt.Sprintf(NW_CFG_PATH, s.Id)
-	return s.StateDriver.ClearState(key)
+func newNwCfgFromData(data []byte) (st state.State, nwCfg *OvsCfgNetworkState, err error) {
+	st := state.NewState{Data: OvsCfgNetworkState{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	nwCfg := &((st.Data()).(OvsCfgNetworkState))
+	return
 }

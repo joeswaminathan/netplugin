@@ -18,15 +18,16 @@ package drivers
 import (
 	"fmt"
 	"testing"
-
-	"github.com/contiv/netplugin/core"
+	//"github.com/contiv/netplugin/core"
+	"github.com/contiv/netplugin/drivers"
 )
 
 const (
 	testNwId = "testNw"
-	nwCfgKey = NW_CFG_PATH_PREFIX + testNwId
+	//nwCfgKey = NW_CFG_PATH_PREFIX + testNwId
 )
 
+/*
 var nwStateDriver *testNwStateDriver = &testNwStateDriver{}
 
 type testNwStateDriver struct {
@@ -78,34 +79,31 @@ func (d *testNwStateDriver) WriteState(key string, value core.State,
 	marshal func(interface{}) ([]byte, error)) error {
 	return d.validateKey(key)
 }
+*/
 
 func TestOvsCfgNetworkStateRead(t *testing.T) {
-	nwCfg := &OvsCfgNetworkState{}
-	nwCfg.StateDriver = nwStateDriver
-
-	err := nwCfg.Read(testNwId)
-	if err != nil {
+	if _, cfgNw, err := readNwCfg(testNwId); err != nil {
 		t.Fatalf("read config state failed. Error: %s", err)
 	}
 }
 
 func TestOvsCfgNetworkStateWrite(t *testing.T) {
-	nwCfg := &OvsCfgNetworkState{}
-	nwCfg.StateDriver = nwStateDriver
-	nwCfg.Id = testNwId
+	if state, cfgNw, err := newNwCfgFromId(testNwId); err != nil {
+		t.Fatalf("read config state failed. Error: %s", err)
+	}
 
-	err := nwCfg.Write()
+	err := state.Write()
 	if err != nil {
 		t.Fatalf("write config state failed. Error: %s", err)
 	}
 }
 
 func TestOvsCfgNetworkStateClear(t *testing.T) {
-	nwCfg := &OvsCfgNetworkState{}
-	nwCfg.StateDriver = nwStateDriver
-	nwCfg.Id = testNwId
+	if state, cfgNw, err := newNwCfgFromId(testNwId); err != nil {
+		t.Fatalf("read config state failed. Error: %s", err)
+	}
 
-	err := nwCfg.Clear()
+	err := state.Clear()
 	if err != nil {
 		t.Fatalf("clear config state failed. Error: %s", err)
 	}

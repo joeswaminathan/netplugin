@@ -18,15 +18,15 @@ package drivers
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/contiv/netplugin/core"
+	"state"
 )
 
 // implements the State interface for an endpoint implemented using
-// vlans with ovs. The state is stored as Json objects.
+// vlans with ovs. The st is stored as Json objects.
 
 type OvsCfgEndpointState struct {
-	core.CommonState
+	state.CommonState
 	NetId      string `json:"netId"`
 	ContName   string `json:"contName"`
 	AttachUUID string `json:"attachUUID"`
@@ -36,23 +36,33 @@ type OvsCfgEndpointState struct {
 	VtepIp     string `json:'vtepIP"`
 }
 
-func (s *OvsCfgEndpointState) Write() error {
-	key := fmt.Sprintf(EP_CFG_PATH, s.Id)
-	return s.StateDriver.WriteState(key, s, json.Marshal)
+func (s OvsCfgEndpointState) Key() string {
+	return EP_CFG_PATH_PREFIX + s.Id
 }
 
-func (s *OvsCfgEndpointState) Read(id string) error {
-	key := fmt.Sprintf(EP_CFG_PATH, id)
-	return s.StateDriver.ReadState(key, s, json.Unmarshal)
+func readEpCfg(id string) (st core.State, cfgNw *OvsCfgEndpointState, err error) {
+	st := state.NewState{Data: OvsCfgEndpointState{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	cfgNw := &((st.Data()).(OvsCfgEndpointState))
+	return
 }
 
-func (s *OvsCfgEndpointState) ReadAll() ([]core.State, error) {
-	return s.StateDriver.ReadAllState(EP_CFG_PATH_PREFIX, s, json.Unmarshal)
+func newEpCfgFromId(Id string) (st core.State, cfgNw *OvsCfgEndpointState, err error) {
+	st := state.NewState{Data: OvsCfgEndpointState{Id: id}}
+	cfgNw := &((st.Data()).(OvsCfgEndpointState))
+	return
 }
 
-func (s *OvsCfgEndpointState) Clear() error {
-	key := fmt.Sprintf(EP_CFG_PATH, s.Id)
-	return s.StateDriver.ClearState(key)
+func newEpCfgFromData(data []byte) (st core.State, cfgNw *OvsCfgEndpointState, err error) {
+	st := state.NewState{Data: OvsCfgEndpointState{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	cfgNw := &((st.Data()).(OvsCfgEndpointState))
+	return
 }
 
 type OvsOperEndpointState struct {
@@ -67,21 +77,31 @@ type OvsOperEndpointState struct {
 	VtepIp     string `json:'vtepIP"`
 }
 
-func (s *OvsOperEndpointState) Write() error {
-	key := fmt.Sprintf(EP_OPER_PATH, s.Id)
-	return s.StateDriver.WriteState(key, s, json.Marshal)
+func (s OvsOperEndpointState) Key() string {
+	return EP_OPER_PATH_PREFIX + s.Id
 }
 
-func (s *OvsOperEndpointState) Read(id string) error {
-	key := fmt.Sprintf(EP_OPER_PATH, id)
-	return s.StateDriver.ReadState(key, s, json.Unmarshal)
+func readEpOper(id string) (st core.State, cfgNw *OvsOperEndpointState, err error) {
+	st := state.NewState{Data: OvsOperEndpointState{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	cfgNw := &((st.Data()).(OvsOperEndpointState))
+	return
 }
 
-func (s *OvsOperEndpointState) ReadAll() ([]core.State, error) {
-	return s.StateDriver.ReadAllState(EP_OPER_PATH_PREFIX, s, json.Unmarshal)
+func newEpOperFromId(id string) (st core.State, cfgNw *OvsOperEndpointState, err error) {
+	st := state.NewState{Data: OvsOperEndpointState{Id: id}}
+	cfgNw := &((st.Data()).(OvsOperEndpointState))
+	return
 }
 
-func (s *OvsOperEndpointState) Clear() error {
-	key := fmt.Sprintf(EP_OPER_PATH, s.Id)
-	return s.StateDriver.ClearState(key)
+func newEpOperFromData(data []byte) (st core.State, cfgNw *OvsOperEndpointState, err error) {
+	st := state.NewState{Data: OvsOperEndpointState{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	cfgNw := &((st.Data()).(OvsOperEndpointState))
+	return
 }

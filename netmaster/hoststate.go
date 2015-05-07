@@ -18,8 +18,8 @@ package netmaster
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/contiv/netplugin/core"
+	"state"
 )
 
 const (
@@ -28,28 +28,38 @@ const (
 )
 
 type MasterHostConfig struct {
-	core.CommonState
+	state.CommonState
 	Name   string `json:"name"`
 	Intf   string `json:"intf"`
 	VtepIp string `json:"vtepIp"`
 	NetId  string `json:"netId"`
 }
 
-func (s *MasterHostConfig) Write() error {
-	key := fmt.Sprintf(HOST_CFG_PATH, s.Name)
-	return s.StateDriver.WriteState(key, s, json.Marshal)
+func (s MasterHostConfig) Key() string {
+	return NW_CFG_PATH_PREFIX + s.Id
 }
 
-func (s *MasterHostConfig) Read(hostname string) error {
-	key := fmt.Sprintf(HOST_CFG_PATH, hostname)
-	return s.StateDriver.ReadState(key, s, json.Unmarshal)
+func readHostCfg(id string) (st core.State, mstrHostCfg *MasterHostConfig, err error) {
+	st := state.NewState{Data: MasterHostConfig{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	mstrHostCfg := &((st.Data()).(MasterHostConfig))
+	return
 }
 
-func (s *MasterHostConfig) ReadAll() ([]core.State, error) {
-	return s.StateDriver.ReadAllState(HOST_CFG_PATH_PREFIX, s, json.Unmarshal)
+func newHostCfgFromId(id string) (st core.State, mstrHostCfg *MasterHostConfig, err error) {
+	st := state.NewState{Data: MasterHostConfig{Id: id}}
+	mstrHostCfg := &((st.Data()).(MasterHostConfig))
+	return
 }
 
-func (s *MasterHostConfig) Clear() error {
-	key := fmt.Sprintf(HOST_CFG_PATH, s.Name)
-	return s.StateDriver.ClearState(key)
+func newHostCfgFromData(data []byte) (st core.State, mstrHostCfg *MasterHostConfig, err error) {
+	st := state.NewState{Data: MasterHostConfig{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	mstrHostCfg := &((st.Data()).(MasterHostConfig))
+	return
 }

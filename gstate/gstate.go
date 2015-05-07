@@ -59,17 +59,79 @@ type DeployParams struct {
 
 // global state of the network plugin
 type Cfg struct {
-	core.CommonState
+	state.CommonState
 	Version string       `json:"version"`
 	Tenant  string       `json:"tenant"`
 	Auto    AutoParams   `json:auto"`
 	Deploy  DeployParams `json:"deploy"`
 }
 
+func (s Cfg) Key() string {
+	return EP_CFG_PATH_PREFIX + s.Id
+}
+
+func readGsCfg(id string) (st core.State, gsCfg *Cfg, err error) {
+	st := state.NewState{Data: Cfg{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	gsCfg := &((st.Data()).(Cfg))
+	return
+}
+
+func newGsCfgFromId(Id string) (st core.State, gsCfg *Cfg, err error) {
+	st := state.NewState{Data: Cfg{Id: id}}
+	gsCfg := &((st.Data()).(Cfg))
+	return
+}
+
+func newGsCfgFromData(data []byte) (st core.State, gsCfg *Cfg, err error) {
+	st := state.NewState{Data: Cfg{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	gsCfg := &((st.Data()).(Cfg))
+	if err = gsCfg.CheckErrors(); err != nil {
+		gsCfg := (*Cfg).(nil)
+		return
+	}
+	return
+}
+
 type Oper struct {
-	core.CommonState
+	state.CommonState
 	Tenant          string `json:"tenant"`
 	FreeVxlansStart uint   `json:"freeVxlansStart"`
+}
+
+func (s Oper) Key() string {
+	return EP_CFG_PATH_PREFIX + s.Id
+}
+
+func readGsOper(id string) (st core.State, gsOper *Oper, err error) {
+	st := state.NewState{Data: Oper{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	gsOper := &((st.Data()).(Oper))
+	return
+}
+
+func newGsOperFromId(Id string) (st core.State, gsOper *Oper, err error) {
+	st := state.NewState{Data: Oper{Id: id}}
+	gsOper := &((st.Data()).(Oper))
+	return
+}
+
+func newGsOperFromData(data []byte) (st core.State, gsOper *Oper, err error) {
+	st := state.NewState{Data: Oper{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	gsOper := &((st.Data()).(Oper))
+	return
 }
 
 func (gc *Cfg) Dump() error {
@@ -109,20 +171,8 @@ func (gc *Cfg) checkErrors() error {
 	return err
 }
 
-func Parse(configBytes []byte) (*Cfg, error) {
-	var gc Cfg
-
-	err := json.Unmarshal(configBytes, &gc)
-	if err != nil {
-		return nil, err
-	}
-
-	err = gc.checkErrors()
-	if err != nil {
-		return nil, err
-	}
-
-	return &gc, err
+func Parse(configBytes []byte) (st core.State, cfg *Cfg, err error) {
+	return newGsCfgFromData(configBytes)
 }
 
 func (gc *Cfg) Write() error {

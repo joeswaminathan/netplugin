@@ -50,11 +50,13 @@ const (
 	GET_INTF_NAME = false
 )
 
+type OvsConfig struct {
+	DbIp   string `json:"dbip"`
+	DbPort int    `json:"dbport"`
+}
+
 type OvsDriverConfig struct {
-	Ovs struct {
-		DbIp   string
-		DbPort int
-	}
+	Ovs OvsConfig `json:"ovs"`
 }
 
 // OvsDriver implements the Layer 2 Network and Endpoint Driver interfaces
@@ -328,10 +330,7 @@ func vxlanIfName(netId, vtepIp string) string {
 }
 
 func (d *OvsDriver) createVtep(epCfg *OvsCfgEndpointState) error {
-	cfgNw := OvsCfgNetworkState{}
-	cfgNw.StateDriver = d.stateDriver
-	err := cfgNw.Read(epCfg.NetId)
-	if err != nil {
+	if cfgNw, err := readNwCfg(epCfg.NetId); err != nil {
 		return err
 	}
 
@@ -351,16 +350,12 @@ func (d *OvsDriver) createVtep(epCfg *OvsCfgEndpointState) error {
 	return nil
 }
 
-func (d *OvsDriver) deleteVtep(epOper *OvsOperEndpointState) error {
-
-	cfgNw := OvsCfgNetworkState{}
-	cfgNw.StateDriver = d.stateDriver
-	err := cfgNw.Read(epOper.NetId)
-	if err != nil {
+func (d *OvsDriver) deleteVtep(epCfg *OvsCfgEndpointState) error {
+	if cfgNw, err := readNwCfg(epCfg.NetId); err != nil {
 		return err
 	}
 
-	intfName := vxlanIfName(epOper.NetId, epOper.VtepIp)
+	intfName := vxlanIfName(epCfg.NetId, epCfg.VtepIp)
 	err = d.createDeletePort(intfName, intfName, "vxlan", cfgNw.Id,
 		nil, cfgNw.PktTag, DELETE_PORT)
 	if err != nil {
@@ -425,22 +420,25 @@ func (d *OvsDriver) Deinit() {
 }
 
 func (d *OvsDriver) CreateNetwork(id string) error {
-	cfgNw := OvsCfgNetworkState{}
-	cfgNw.StateDriver = d.stateDriver
-	err := cfgNw.Read(id)
-	if err != nil {
-		log.Printf("Failed to read net %s \n", cfgNw.Id)
+	if cfgNw, err := readNwCfg(epCfg.NetId); err != nil {
 		return err
 	}
+
 	log.Printf("create net %s \n", cfgNw.Id)
 
 	return nil
 }
 
-func (d *OvsDriver) DeleteNetwork(id string) error {
+func (d *OvsDriver) DeleteNetwork(value string) error {
 
 	// no driver operation for network delete
-	log.Printf("delete net %s \n", id)
+	var err error
+
+	if cfgNw, err := readNwCfgFromData([]byte(vaue)); err != nil {
+		log.Printf("Failed to unmarshal network config, err '%s' \n", err)
+		return err
+	}
+	log.Printf("delete net %s \n", cfgNw.Id)
 
 	return nil
 }
@@ -453,10 +451,7 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 	intfName := portName
 	intfType := "internal"
 
-	epCfg := OvsCfgEndpointState{}
-	epCfg.StateDriver = d.stateDriver
-	err = epCfg.Read(id)
-	if err != nil {
+	if epCfg, err := readEpCfg(id); err != nil {
 		return err
 	}
 
@@ -470,9 +465,9 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 	}
 
 	// use the user provided interface name. The primary usecase for such
-	// endpoints is for adding the host-interfaces to the ovs bridge.
-	// But other usecases might involve user created linux interface
-	// devices for containers like SRIOV, that need to be bridged using ovs
+	// endpoints is for adding the host-interfaces to the ovs bridge. But other
+	// usecases might involve user created linux interface devices for
+	// containers like SRIOV, that need to be bridged using ovs
 	// Also, if the interface name is provided by user then we don't create
 	// ovs-internal interface
 	if epCfg.IntfName != "" {
@@ -480,10 +475,7 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 		intfType = ""
 	}
 
-	cfgNw := OvsCfgNetworkState{}
-	cfgNw.StateDriver = d.stateDriver
-	err = cfgNw.Read(epCfg.NetId)
-	if err != nil {
+	if cfgNw, err := readNwCfg(epCfg.NetId); err != nil {
 		return err
 	}
 
@@ -499,58 +491,61 @@ func (d *OvsDriver) CreateEndpoint(id string) error {
 		}
 	}()
 
-	operEp := OvsOperEndpointState{
-		PortName:   portName,
-		NetId:      epCfg.NetId,
-		AttachUUID: epCfg.AttachUUID,
-		ContName:   epCfg.ContName,
-		IpAddress:  epCfg.IpAddress,
-		IntfName:   intfName,
-		HomingHost: epCfg.HomingHost,
-		VtepIp:     epCfg.VtepIp}
-	operEp.StateDriver = d.stateDriver
-	operEp.Id = id
-	err = operEp.Write()
+	if operState, operEp, err := newEpOperFromId(id); err != nil {
+		return err
+	}
+	operEp.PortName = portName
+	operEp.NetId = epCfg.NetId
+	operEp.ContName = epCfg.ContName
+	operEp.IpAddress = epCfg.IpAddress
+	operEp.IntfName = intfName
+	operEp.HomingHost = epCfg.HomingHost
+	operEp.VtepIp = epCfg.VtepIp
+
+	err = state.Write()
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			operEp.Clear()
+			state.Clear()
 		}
 	}()
 
 	return nil
 }
 
-func (d *OvsDriver) DeleteEndpoint(id string) (err error) {
+func (d *OvsDriver) DeleteEndpoint(value string) (err error) {
 
-	epOper := OvsOperEndpointState{}
-	epOper.StateDriver = d.stateDriver
-	err = epOper.Read(id)
-	if err != nil {
+	if _, epCfg, err := newEpCfgFromData([]byte(value)); err != nil {
+		log.Printf("Failed to unmarshal epcfg, err '%s' \n", err)
 		return err
 	}
-	defer func() {
-		epOper.Clear()
-	}()
 
-	if epOper.VtepIp != "" {
-		err = d.deleteVtep(&epOper)
+	if epCfg.VtepIp != "" {
+		err = d.deleteVtep(&epCfg)
 		if err != nil {
-			log.Printf("error '%s' deleting vtep interface(s) for "+
-				"remote endpoint %s\n", err, epOper.VtepIp)
+			log.Printf("error '%s' creating vtep interface(s) for "+
+				"remote endpoint %s\n", err, epCfg.VtepIp)
 		}
 		return
 	}
 
-	portName, err := d.getPortOrIntfNameFromId(epOper.Id, GET_PORT_NAME)
+	if epState, epOper, err := readEpOper(id); err != nil {
+		return err
+	}
+
+	defer func() {
+		epState.Clear()
+	}()
+
+	portName, err := d.getPortOrIntfNameFromId(epCfg.Id, GET_PORT_NAME)
 	if err != nil {
 		return err
 	}
 
 	intfName := ""
-	intfName, err = d.getPortOrIntfNameFromId(epOper.Id, GET_INTF_NAME)
+	intfName, err = d.getPortOrIntfNameFromId(epCfg.Id, GET_INTF_NAME)
 	if err != nil {
 		return err
 	}

@@ -22,9 +22,9 @@ package netmaster
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/contiv/netplugin/core"
 	"github.com/contiv/netplugin/drivers"
+	"state"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 type MasterNwConfig struct {
-	core.CommonState
+	state.CommonState
 	Tenant     string `json:"tenant"`
 	PktTagType string `json:"pktTagType"`
 	PktTag     string `json:"pktTag"`
@@ -44,21 +44,31 @@ type MasterNwConfig struct {
 	DefaultGw  string `json:"defaultGw"`
 }
 
-func (s *MasterNwConfig) Write() error {
-	key := fmt.Sprintf(NW_CFG_PATH, s.Id)
-	return s.StateDriver.WriteState(key, s, json.Marshal)
+func (s MasterNwConfig) Key() string {
+	return NW_CFG_PATH_PREFIX + s.Id
 }
 
-func (s *MasterNwConfig) Read(id string) error {
-	key := fmt.Sprintf(NW_CFG_PATH, id)
-	return s.StateDriver.ReadState(key, s, json.Unmarshal)
+func readNwCfg(id string) (st core.State, mstrNwCfg *MasterNwConfig, err error) {
+	st := state.NewState{Data: MasterNwConfig{Id: id}}
+	err := st.Read()
+	if err != nil {
+		return err
+	}
+	mstrNwCfg := &((st.Data()).(MasterNwConfig))
+	return
 }
 
-func (s *MasterNwConfig) ReadAll() ([]core.State, error) {
-	return s.StateDriver.ReadAllState(NW_CFG_PATH_PREFIX, s, json.Unmarshal)
+func newNwCfgFromId(id string) (st core.State, mstrNwCfg *MasterNwConfig, err error) {
+	st := state.NewState{Data: MasterNwConfig{Id: id}}
+	mstrNwCfg := &((st.Data()).(MasterNwConfig))
+	return
 }
 
-func (s *MasterNwConfig) Clear() error {
-	key := fmt.Sprintf(NW_CFG_PATH, s.Id)
-	return s.StateDriver.ClearState(key)
+func newNwCfgFromData(data []byte) (st core.State, mstrNwCfg *MasterNwConfig, err error) {
+	st := state.NewState{Data: MasterNwConfig{}}
+	if err := st.Set([]byte(value)); err != nil {
+		return err
+	}
+	mstrNwCfg := &((st.Data()).(MasterNwConfig))
+	return
 }

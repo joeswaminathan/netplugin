@@ -45,14 +45,14 @@ func TestGlobalConfigAutoVlans(t *testing.T) {
         }`)
 	var vlan uint
 
-	gc, err := Parse(cfgData)
+	_, gc, err := Parse(cfgData)
 	if err != nil {
 		t.Fatalf("error '%s' parsing config '%s' \n", err, cfgData)
 	}
 
 	gstateSD.Init(nil)
 	defer func() { gstateSD.Deinit() }()
-	gc.StateDriver = gstateSD
+	_, gc.StateDriver = gstateSD
 	gstateTestRA.Init()
 	defer func() { gstateTestRA.Deinit() }()
 
@@ -96,7 +96,7 @@ func TestGlobalConfigAutoVxlan(t *testing.T) {
         }`)
 	var vxlan, localVlan uint
 
-	gc, err := Parse(cfgData)
+	_, gc, err := Parse(cfgData)
 	if err != nil {
 		t.Fatalf("error '%s' parsing config '%s' \n", err, cfgData)
 	}
@@ -148,7 +148,7 @@ func TestGlobalConfigDefaultVxlanWithVlans(t *testing.T) {
         }`)
 	var vlan, localVlan, vxlan uint
 
-	gc, err := Parse(cfgData)
+	_, gc, err := Parse(cfgData)
 	if err != nil {
 		t.Fatalf("error '%s' parsing config '%s' \n", err, cfgData)
 	}
@@ -212,7 +212,7 @@ func TestInvalidGlobalConfigNoLocalVlans(t *testing.T) {
             }
         }`)
 
-	gc, err := Parse(cfgData)
+	_, gc, err := Parse(cfgData)
 	if err != nil {
 		t.Fatalf("error '%s' parsing config '%s' \n", err, cfgData)
 	}

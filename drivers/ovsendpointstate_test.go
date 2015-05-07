@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	testEpId  = "testEp"
-	epCfgKey  = EP_CFG_PATH_PREFIX + testEpId
-	epOperKey = EP_OPER_PATH_PREFIX + testEpId
+	testEpId = "testEp"
+	//epCfgKey  = EP_CFG_PATH_PREFIX + testEpId
+	//epOperKey = EP_OPER_PATH_PREFIX + testEpId
 )
 
+/*
 var epStateDriver *testEpStateDriver = &testEpStateDriver{}
 
 type testEpStateDriver struct {
@@ -79,6 +80,7 @@ func (d *testEpStateDriver) WriteState(key string, value core.State,
 	marshal func(interface{}) ([]byte, error)) error {
 	return d.validateKey(key)
 }
+*/
 
 func TestOvsCfgEndpointStateRead(t *testing.T) {
 	epCfg := &OvsCfgEndpointState{}

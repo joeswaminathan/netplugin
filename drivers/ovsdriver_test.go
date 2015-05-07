@@ -76,7 +76,8 @@ func (d *testOvsStateDriver) ClearState(key string) error {
 
 func (d *testOvsStateDriver) readStateHelper(isCreateEp bool, oper int,
 	value core.State) error {
-	if cfgNw, ok := value.(*OvsCfgNetworkState); ok {
+	if state, ok := value.(state.CommonStateModel); ok {
+		cfgNw := state.Data.(OvsCfgNetworkState)
 		cfgNw.Id = testOvsNwId
 		cfgNw.PktTag = testPktTag
 		cfgNw.ExtPktTag = testExtPktTag
